@@ -350,6 +350,51 @@ async def health_check():
     }
 
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus-compatible metrics endpoint"""
+    from fastapi.responses import PlainTextResponse
+    
+    # Get current stats
+    policies_total = len(policies_store)
+    policies_deployed = sum(1 for p in policies_store.values() if p.get("deployed", False))
+    drift_events_count = len(drift_events)
+    
+    # Get risk score (async method)
+    try:
+        risk_data = await risk_scorer.calculate()
+        overall_score = risk_data.get('overall_score', 50)
+    except Exception:
+        overall_score = 50
+    
+    # Format as Prometheus metrics
+    metrics = f"""# HELP policies_total Total number of generated policies
+# TYPE policies_total gauge
+policies_total {policies_total}
+
+# HELP policies_deployed Number of deployed policies
+# TYPE policies_deployed gauge
+policies_deployed {policies_deployed}
+
+# HELP drift_events_total Total number of drift events detected
+# TYPE drift_events_total counter
+drift_events_total {drift_events_count}
+
+# HELP security_risk_score Current security risk score (0-100, lower is better)
+# TYPE security_risk_score gauge
+security_risk_score {overall_score}
+
+# HELP policy_generator_up Policy generator API status
+# TYPE policy_generator_up gauge
+policy_generator_up 1
+
+# HELP drift_detector_up Drift detector status
+# TYPE drift_detector_up gauge
+drift_detector_up 1
+"""
+    return PlainTextResponse(content=metrics, media_type="text/plain")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -56,13 +56,17 @@ data:
   falco_rules.local.yaml: |
     # Custom rules for network policy drift detection
 
+    # Define the container macro (required for custom rules)
+    - macro: container
+      condition: container.id != host
+
     - rule: Unexpected Outbound Connection
       desc: Detect outbound connections not allowed by network policy
       condition: >
         evt.type = connect and
         fd.typechar = 4 and
         fd.net != "127.0.0.0/8" and
-        container and
+        container.id != host and
         not k8s.ns.name in (kube-system, monitoring)
       output: >
         Unexpected outbound connection
@@ -89,7 +93,7 @@ data:
       condition: >
         evt.type = execve and
         evt.dir = < and
-        container and
+        container.id != host and
         proc.name in (sh, bash, ash, zsh) and
         proc.pname != entrypoint.sh
       output: >
@@ -105,7 +109,7 @@ data:
       condition: >
         evt.type in (open, openat) and
         evt.dir = < and
-        container and
+        container.id != host and
         fd.name in (/etc/shadow, /etc/passwd, /etc/kubernetes/admin.conf)
       output: >
         Sensitive file access detected
@@ -118,7 +122,7 @@ data:
       desc: Detect potential crypto mining
       condition: >
         evt.type = execve and
-        container and
+        container.id != host and
         (proc.name in (xmrig, minerd, cpuminer) or
          proc.args contains "stratum+tcp://")
       output: >
